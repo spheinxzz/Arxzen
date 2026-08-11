@@ -1,3 +1,180 @@
+const { supabase, authClient } = require("../config/supabase");
+
+async function register(req, res, next) {
+  try {
+    const {
+      email,
+      password,
+      username,
+      displayName
+    } = req.body;
+
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    const cleanUsername = String(username || "").trim();
+    const cleanDisplayName = String(displayName || "").trim();
+
+    if (!cleanEmail || !password || !cleanUsername || !cleanDisplayName) {
+      return res.status(400).json({
+        error: "ARX-REG-000: Email, password, username, and display name are required."
+      });
+    }
+
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: cleanEmail,
+      password,
+      email_confirm: false,
+      user_metadata: {
+        username: cleanUsername,
+        display_name: cleanDisplayName
+      }
+    });
+
+    if (error) {
+      return res.status(400).json({
+        error: "ARX-REG-001: " + error.message
+      });
+    }
+
+    return res.status(201).json({
+      message: "Account created",
+      user: data.user
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function login(req, res, next) {
+  try {
+    const { email, password } = req.body;
+
+    const cleanEmail = String(email || "").trim().toLowerCase();
+
+    if (!cleanEmail || !password) {
+      return res.status(400).json({
+        error: "ARX-LOGIN-000: Email and password are required."
+      });
+    }
+
+    const { data, error } =
+      await authClient.auth.signInWithPassword({
+        email: cleanEmail,
+        password
+      });
+
+    if (error) {
+      return res.status(401).json({
+        error: "ARX-LOGIN-001: " + error.message
+      });
+    }
+
+    return res.json({
+      message: "Login successful",
+      user: data.user,
+      session: data.session
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function logout(req, res) {
+  return res.json({
+    message: "Logged out successfully"
+  });
+}
+
+async function forgotPassword(req, res, next) {
+  try {
+    const { email } = req.body || {};
+
+    const cleanEmail = String(email || "").trim().toLowerCase();
+
+    if (!cleanEmail) {
+      return res.status(400).json({
+        error: "ARX-PASS-001: Email is required."
+      });
+    }
+
+    const frontend = process.env.FRONTEND_URL;
+
+    if (!frontend) {
+      return res.status(500).json({
+        error:
+          "ARX-PASS-000: FRONTEND_URL is not configured."
+      });
+    }
+
+    const { error } =
+      await authClient.auth.resetPasswordForEmail(
+        cleanEmail,
+        {
+          redirectTo: `${frontend}/reset-password`
+        }
+      );
+
+    if (error) {
+      return res.status(400).json({
+        error: "ARX-PASS-002: " + error.message
+      });
+    }
+
+    return res.json({
+      message: "Password reset email sent"
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function verifyEmail(req, res, next) {
+  try {
+    const { email, code } = req.body || {};
+
+    const cleanEmail = String(email || "")
+      .trim()
+      .toLowerCase();
+
+    const cleanCode = String(code || "").trim();
+
+    if (!cleanEmail || !cleanCode) {
+      return res.status(400).json({
+        error:
+          "ARX-VERIFY-001: Email and verification code are required."
+      });
+    }
+
+    const { data, error } =
+      await authClient.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanCode,
+        type: "email"
+      });
+
+    if (error) {
+      return res.status(400).json({
+        error:
+          "ARX-VERIFY-002: " +
+          error.message
+      });
+    }
+
+    return res.json({
+      message: "Email verified",
+      user: data?.user || null,
+      session: data?.session || null
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getSession(req, res) {
+  return res.json({
+    user: req.user || null
+  });
+}
+
 async function googleOAuth(req, res, next) {
   try {
     const backend = process.env.BACKEND_URL;
@@ -67,6 +244,22 @@ async function googleOAuthCallback(req, res, next) {
       });
     }
 
+    const user = data.user;
+    const metadata = user.user_metadata || {};
+
+    const email = user.email || "";
+    const username =
+      metadata.username ||
+      metadata.user_name ||
+      email.split("@")[0] ||
+      "username";
+
+    const displayName =
+      metadata.display_name ||
+      metadata.full_name ||
+      metadata.name ||
+      username;
+
     const accessToken =
       encodeURIComponent(
         data.session.access_token
@@ -77,8 +270,18 @@ async function googleOAuthCallback(req, res, next) {
         data.session.refresh_token
       );
 
+    const userData = encodeURIComponent(
+      JSON.stringify({
+        id: user.id,
+        email,
+        username,
+        displayName,
+        provider: "google"
+      })
+    );
+
     return res.redirect(
-      `${frontend}/register#oauth=google&access_token=${accessToken}&refresh_token=${refreshToken}`
+      `${frontend}/home?oauth=google&access_token=${accessToken}&refresh_token=${refreshToken}&user=${userData}`
     );
   } catch (error) {
     next(error);
@@ -154,6 +357,24 @@ async function discordOAuthCallback(req, res, next) {
       });
     }
 
+    const user = data.user;
+    const metadata = user.user_metadata || {};
+
+    const email = user.email || "";
+
+    const username =
+      metadata.username ||
+      metadata.user_name ||
+      metadata.preferred_username ||
+      email.split("@")[0] ||
+      "username";
+
+    const displayName =
+      metadata.display_name ||
+      metadata.full_name ||
+      metadata.name ||
+      username;
+
     const accessToken =
       encodeURIComponent(
         data.session.access_token
@@ -164,13 +385,33 @@ async function discordOAuthCallback(req, res, next) {
         data.session.refresh_token
       );
 
+    const userData = encodeURIComponent(
+      JSON.stringify({
+        id: user.id,
+        email,
+        username,
+        displayName,
+        provider: "discord"
+      })
+    );
+
     return res.redirect(
-      `${frontend}/register#oauth=discord&access_token=${accessToken}&refresh_token=${refreshToken}`
+      `${frontend}/home?oauth=discord&access_token=${accessToken}&refresh_token=${refreshToken}&user=${userData}`
     );
   } catch (error) {
     next(error);
   }
 }
+
+module.exports = {
+  register,
+  login,
+  logout,
+  forgotPassword,
+  verifyEmail,
+  getSession,
+  googleOAuth,
+  googleOAuthCallback,
   discordOAuth,
   discordOAuthCallback
 };
