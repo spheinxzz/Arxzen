@@ -1,5 +1,11 @@
 import { apiRequest } from "./api";
 
+/*
+|--------------------------------------------------------------------------
+| Registration
+|--------------------------------------------------------------------------
+*/
+
 export async function register({
   email,
   password,
@@ -7,65 +13,75 @@ export async function register({
   displayName,
   testerCode
 }) {
-  return apiRequest("/auth/register", {
-    method: "POST",
-    body: JSON.stringify({
-      email,
-      password,
-      username,
-      displayName,
-      testerCode
-    })
-  });
+  return apiRequest(
+    "/auth/register",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        email,
+        password,
+        username,
+        displayName,
+        testerCode
+      })
+    }
+  );
 }
 
-export async function registerAccount({
+export async function registerAccount(
+  account
+) {
+  return register(account);
+}
+
+/*
+|--------------------------------------------------------------------------
+| Password Login
+|--------------------------------------------------------------------------
+*/
+
+export async function login(
   email,
-  password,
-  username,
-  displayName,
-  testerCode
-}) {
-  return register({
-    email,
-    password,
-    username,
-    displayName,
-    testerCode
-  });
-}
+  password
+) {
+  const data =
+    await apiRequest(
+      "/auth/login",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          email,
+          password
+        })
+      }
+    );
 
-export async function login(email, password) {
-  const data = await apiRequest("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({
-      email,
-      password
-    })
-  });
-
-  if (data?.session?.access_token) {
+  if (
+    data?.session?.access_token
+  ) {
     localStorage.setItem(
       "arxzen_access_token",
       data.session.access_token
     );
   }
 
-  if (data?.session?.refresh_token) {
-    localStorage.setItem(
-      "arxzen_refresh_token",
-      data.session.refresh_token
-    );
-  }
-
   return data;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Logout
+|--------------------------------------------------------------------------
+*/
+
 export async function logout() {
   try {
-    return await apiRequest("/auth/logout", {
-      method: "POST"
-    });
+    return await apiRequest(
+      "/auth/logout",
+      {
+        method: "POST"
+      }
+    );
   } finally {
     localStorage.removeItem(
       "arxzen_access_token"
@@ -81,102 +97,136 @@ export async function logout() {
   }
 }
 
+/*
+|--------------------------------------------------------------------------
+| Session
+|--------------------------------------------------------------------------
+*/
+
 export async function getSession() {
-  return apiRequest("/auth/session");
+  return apiRequest(
+    "/auth/session"
+  );
 }
 
 export async function getCurrentUser() {
-  const data = await getSession();
+  const data =
+    await getSession();
+
   return data?.user || null;
 }
 
 export async function getCurrentAccounts() {
-  const user = await getCurrentUser();
+  const user =
+    await getCurrentUser();
 
-  return user ? [user] : [];
+  if (!user) {
+    return [];
+  }
+
+  return [user];
 }
 
 export async function isLoggedIn() {
   try {
-    return !!(await getCurrentUser());
+    const user =
+      await getCurrentUser();
+
+    return !!user;
   } catch {
     return false;
   }
 }
 
-export function loginWithGoogle() {
-  const baseUrl =
-    import.meta.env.VITE_API_URL || "/api";
+/*
+|--------------------------------------------------------------------------
+| Google OAuth
+|--------------------------------------------------------------------------
+*/
 
-  window.location.href =
-    `${baseUrl}/auth/oauth/google`;
-}
-
-export function loginWithDiscord() {
-  const baseUrl =
-    import.meta.env.VITE_API_URL || "/api";
-
-  window.location.href =
-    `${baseUrl}/auth/oauth/discord`;
-}
-
-export async function completeOAuthSession(
-  accessToken,
-  refreshToken
+export async function loginWithGoogle(
+  options = {}
 ) {
-  if (!accessToken) {
-    throw new Error(
-      "ARX-OAUTH-FRONTEND-001: OAuth access token is missing."
-    );
-  }
+  const mode =
+    options.mode || "login";
 
-  localStorage.setItem(
-    "arxzen_access_token",
-    accessToken
-  );
+  const testerCode =
+    options.testerCode || "";
 
-  if (refreshToken) {
-    localStorage.setItem(
-      "arxzen_refresh_token",
-      refreshToken
+  const params =
+    new URLSearchParams();
+
+  params.set("mode", mode);
+
+  /*
+   * Tester code is only sent when registering.
+   */
+
+  if (
+    mode === "register" &&
+    testerCode
+  ) {
+    params.set(
+      "testerCode",
+      testerCode
     );
   }
 
   const baseUrl =
-    import.meta.env.VITE_API_URL || "/api";
+    import.meta.env.VITE_API_URL ||
+    "/api";
 
-  const response = await fetch(
-    `${baseUrl}/auth/oauth/session`,
-    {
-      method: "GET",
-      headers: {
-        Authorization:
-          `Bearer ${accessToken}`
-      }
-    }
-  );
+  window.location.href =
+    `${baseUrl}/auth/oauth/google?${params.toString()}`;
+}
 
-  const data = await response.json();
+/*
+|--------------------------------------------------------------------------
+| Discord OAuth
+|--------------------------------------------------------------------------
+*/
 
-  if (!response.ok) {
-    localStorage.removeItem(
-      "arxzen_access_token"
-    );
+export async function loginWithDiscord(
+  options = {}
+) {
+  const mode =
+    options.mode || "login";
 
-    localStorage.removeItem(
-      "arxzen_refresh_token"
-    );
+  const testerCode =
+    options.testerCode || "";
 
-    throw new Error(
-      data?.error ||
-        "ARX-OAUTH-FRONTEND-002: OAuth authentication failed."
+  const params =
+    new URLSearchParams();
+
+  params.set("mode", mode);
+
+  if (
+    mode === "register" &&
+    testerCode
+  ) {
+    params.set(
+      "testerCode",
+      testerCode
     );
   }
 
-  return data;
+  const baseUrl =
+    import.meta.env.VITE_API_URL ||
+    "/api";
+
+  window.location.href =
+    `${baseUrl}/auth/oauth/discord?${params.toString()}`;
 }
 
-export async function forgotPassword(email) {
+/*
+|--------------------------------------------------------------------------
+| Password reset
+|--------------------------------------------------------------------------
+*/
+
+export async function forgotPassword(
+  email
+) {
   return apiRequest(
     "/auth/forgot-password",
     {
@@ -204,7 +254,15 @@ export async function resetPassword(
   );
 }
 
-export async function verifyEmail(token) {
+/*
+|--------------------------------------------------------------------------
+| Email verification
+|--------------------------------------------------------------------------
+*/
+
+export async function verifyEmail(
+  token
+) {
   return apiRequest(
     "/auth/verify-email",
     {
@@ -229,6 +287,12 @@ export async function resendVerificationEmail(
     }
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Password / Security
+|--------------------------------------------------------------------------
+*/
 
 export async function updatePassword(
   currentPassword,
