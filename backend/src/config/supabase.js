@@ -1,23 +1,45 @@
 const { createClient } = require("@supabase/supabase-js");
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(
-  supabaseUrl,
-  supabaseServiceRoleKey
-);
+if (!supabaseUrl) {
+  throw new Error("SUPABASE_URL is required.");
+}
+
+if (!supabaseAnonKey) {
+  throw new Error("SUPABASE_ANON_KEY is required.");
+}
+
+if (!supabaseServiceKey) {
+  throw new Error("SUPABASE_SERVICE_ROLE_KEY is required.");
+}
 
 const authClient = createClient(
   supabaseUrl,
   supabaseAnonKey,
   {
     auth: {
-      flowType: "pkce"
+      flowType: "pkce",
+      autoRefreshToken: false,
+      persistSession: false
     }
   }
 );
 
-module.exports = supabase;
-module.exports.authClient = authClient;
+const supabase = createClient(
+  supabaseUrl,
+  supabaseServiceKey,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
+
+module.exports = {
+  supabase,
+  authClient
+};
