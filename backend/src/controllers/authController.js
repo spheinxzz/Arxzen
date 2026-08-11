@@ -1,5 +1,4 @@
-const supabase = require("../config/supabase");
-const { authClient } = require("../config/supabase");
+const { supabase, authClient } = require("../config/supabase");
 
 async function register(req, res, next) {
   try {
@@ -7,7 +6,7 @@ async function register(req, res, next) {
       email,
       password,
       username,
-      displayName,
+      displayName
     } = req.body;
 
     const { data, error } =
@@ -17,19 +16,19 @@ async function register(req, res, next) {
         email_confirm: false,
         user_metadata: {
           username,
-          display_name: displayName,
-        },
+          display_name: displayName
+        }
       });
 
     if (error) {
       return res.status(400).json({
-        error: "ARX-REG-001: " + error.message,
+        error: "ARX-REG-001: " + error.message
       });
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Account created",
-      user: data.user,
+      user: data.user
     });
   } catch (error) {
     next(error);
@@ -43,19 +42,19 @@ async function login(req, res, next) {
     const { data, error } =
       await authClient.auth.signInWithPassword({
         email,
-        password,
+        password
       });
 
     if (error) {
       return res.status(401).json({
-        error: "ARX-LOGIN-001: " + error.message,
+        error: "ARX-LOGIN-001: " + error.message
       });
     }
 
-    res.json({
+    return res.json({
       message: "Login successful",
       user: data.user,
-      session: data.session,
+      session: data.session
     });
   } catch (error) {
     next(error);
@@ -63,8 +62,8 @@ async function login(req, res, next) {
 }
 
 async function logout(req, res) {
-  res.json({
-    message: "Logged out successfully",
+  return res.json({
+    message: "Logged out successfully"
   });
 }
 
@@ -74,7 +73,17 @@ async function forgotPassword(req, res, next) {
 
     if (!email || !String(email).trim()) {
       return res.status(400).json({
-        error: "ARX-PASS-001: Email is required.",
+        error: "ARX-PASS-001: Email is required."
+      });
+    }
+
+    const frontend =
+      process.env.FRONTEND_URL;
+
+    if (!frontend) {
+      return res.status(500).json({
+        error:
+          "ARX-PASS-000: FRONTEND_URL is not configured."
       });
     }
 
@@ -83,18 +92,18 @@ async function forgotPassword(req, res, next) {
         String(email).trim().toLowerCase(),
         {
           redirectTo:
-            `${process.env.FRONTEND_URL}/reset-password`,
+            `${frontend}/reset-password`
         }
       );
 
     if (error) {
       return res.status(400).json({
-        error: "ARX-PASS-002: " + error.message,
+        error: "ARX-PASS-002: " + error.message
       });
     }
 
-    res.json({
-      message: "Password reset email sent",
+    return res.json({
+      message: "Password reset email sent"
     });
   } catch (error) {
     next(error);
@@ -108,7 +117,7 @@ async function verifyEmail(req, res, next) {
     if (!email || !code) {
       return res.status(400).json({
         error:
-          "ARX-VERIFY-001: Email and verification code are required.",
+          "ARX-VERIFY-001: Email and verification code are required."
       });
     }
 
@@ -118,21 +127,21 @@ async function verifyEmail(req, res, next) {
           .trim()
           .toLowerCase(),
         token: String(code),
-        type: "email",
+        type: "email"
       });
 
     if (error) {
       return res.status(400).json({
         error:
           "ARX-VERIFY-002: " +
-          error.message,
+          error.message
       });
     }
 
-    res.json({
+    return res.json({
       message: "Email verified",
       user: data?.user || null,
-      session: data?.session || null,
+      session: data?.session || null
     });
   } catch (error) {
     next(error);
@@ -140,19 +149,20 @@ async function verifyEmail(req, res, next) {
 }
 
 async function getSession(req, res) {
-  res.json({
-    user: req.user,
+  return res.json({
+    user: req.user
   });
 }
 
 async function googleOAuth(req, res, next) {
   try {
-    const backend = process.env.BACKEND_URL;
+    const backend =
+      process.env.BACKEND_URL;
 
     if (!backend) {
       return res.status(500).json({
         error:
-          "ARX-OAUTH-GOOGLE-000: BACKEND_URL is not configured.",
+          "ARX-OAUTH-GOOGLE-000: BACKEND_URL is not configured."
       });
     }
 
@@ -161,15 +171,15 @@ async function googleOAuth(req, res, next) {
         provider: "google",
         options: {
           redirectTo:
-            `${backend}/api/auth/oauth/google/callback`,
-        },
+            `${backend}/api/auth/oauth/google/callback`
+        }
       });
 
     if (error || !data?.url) {
       return res.status(400).json({
         error:
           "ARX-OAUTH-GOOGLE-001: Unable to start Google authentication.",
-        details: error?.message,
+        details: error?.message || null
       });
     }
 
@@ -186,7 +196,7 @@ async function googleOAuthCallback(req, res, next) {
     if (!code) {
       return res.status(400).json({
         error:
-          "ARX-OAUTH-GOOGLE-002: Authorization code is missing.",
+          "ARX-OAUTH-GOOGLE-002: Authorization code is missing."
       });
     }
 
@@ -195,24 +205,40 @@ async function googleOAuthCallback(req, res, next) {
         code
       );
 
-    if (error || !data?.session) {
+    if (
+      error ||
+      !data?.session ||
+      !data?.user
+    ) {
       return res.status(401).json({
         error:
           "ARX-OAUTH-GOOGLE-003: Google authentication failed.",
+        details: error?.message || null
       });
     }
 
-    const frontend = process.env.FRONTEND_URL;
+    const frontend =
+      process.env.FRONTEND_URL;
 
     if (!frontend) {
       return res.status(500).json({
         error:
-          "ARX-OAUTH-GOOGLE-004: FRONTEND_URL is not configured.",
+          "ARX-OAUTH-GOOGLE-004: FRONTEND_URL is not configured."
       });
     }
 
+    const accessToken =
+      encodeURIComponent(
+        data.session.access_token
+      );
+
+    const refreshToken =
+      encodeURIComponent(
+        data.session.refresh_token
+      );
+
     return res.redirect(
-      `${frontend}/home?oauth=google`
+      `${frontend}/home?oauth=google&access_token=${accessToken}&refresh_token=${refreshToken}`
     );
   } catch (error) {
     next(error);
@@ -221,12 +247,13 @@ async function googleOAuthCallback(req, res, next) {
 
 async function discordOAuth(req, res, next) {
   try {
-    const backend = process.env.BACKEND_URL;
+    const backend =
+      process.env.BACKEND_URL;
 
     if (!backend) {
       return res.status(500).json({
         error:
-          "ARX-OAUTH-DISCORD-000: BACKEND_URL is not configured.",
+          "ARX-OAUTH-DISCORD-000: BACKEND_URL is not configured."
       });
     }
 
@@ -235,15 +262,15 @@ async function discordOAuth(req, res, next) {
         provider: "discord",
         options: {
           redirectTo:
-            `${backend}/api/auth/oauth/discord/callback`,
-        },
+            `${backend}/api/auth/oauth/discord/callback`
+        }
       });
 
     if (error || !data?.url) {
       return res.status(400).json({
         error:
           "ARX-OAUTH-DISCORD-001: Unable to start Discord authentication.",
-        details: error?.message,
+        details: error?.message || null
       });
     }
 
@@ -260,7 +287,7 @@ async function discordOAuthCallback(req, res, next) {
     if (!code) {
       return res.status(400).json({
         error:
-          "ARX-OAUTH-DISCORD-002: Authorization code is missing.",
+          "ARX-OAUTH-DISCORD-002: Authorization code is missing."
       });
     }
 
@@ -269,24 +296,40 @@ async function discordOAuthCallback(req, res, next) {
         code
       );
 
-    if (error || !data?.session) {
+    if (
+      error ||
+      !data?.session ||
+      !data?.user
+    ) {
       return res.status(401).json({
         error:
           "ARX-OAUTH-DISCORD-003: Discord authentication failed.",
+        details: error?.message || null
       });
     }
 
-    const frontend = process.env.FRONTEND_URL;
+    const frontend =
+      process.env.FRONTEND_URL;
 
     if (!frontend) {
       return res.status(500).json({
         error:
-          "ARX-OAUTH-DISCORD-004: FRONTEND_URL is not configured.",
+          "ARX-OAUTH-DISCORD-004: FRONTEND_URL is not configured."
       });
     }
 
+    const accessToken =
+      encodeURIComponent(
+        data.session.access_token
+      );
+
+    const refreshToken =
+      encodeURIComponent(
+        data.session.refresh_token
+      );
+
     return res.redirect(
-      `${frontend}/home?oauth=discord`
+      `${frontend}/home?oauth=discord&access_token=${accessToken}&refresh_token=${refreshToken}`
     );
   } catch (error) {
     next(error);
@@ -303,5 +346,5 @@ module.exports = {
   googleOAuth,
   googleOAuthCallback,
   discordOAuth,
-  discordOAuthCallback,
+  discordOAuthCallback
 };
