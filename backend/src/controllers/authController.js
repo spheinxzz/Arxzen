@@ -34,7 +34,7 @@ async function findAuthUserByEmail(email) {
     const users = data?.users || [];
 
     const user = users.find(
-      (account) =>
+      account =>
         normalizeEmail(account.email) === normalizedEmail
     );
 
@@ -46,7 +46,7 @@ async function findAuthUserByEmail(email) {
       return null;
     }
 
-    page += 1;
+    page++;
   }
 }
 
@@ -111,17 +111,6 @@ async function register(req, res, next) {
       });
 
     if (error) {
-      if (
-        error.message
-          ?.toLowerCase()
-          .includes("already been registered")
-      ) {
-        return res.status(409).json({
-          error:
-            "ARX-REG-006: An Arxzen account with this email address is already registered."
-        });
-      }
-
       return res.status(400).json({
         error:
           "ARX-REG-001: " + error.message
@@ -150,20 +139,19 @@ async function login(req, res, next) {
       });
     }
 
-    const registeredUser =
+    const existingUser =
       await findAuthUserByEmail(cleanEmail);
 
-    if (!registeredUser) {
+    if (!existingUser) {
       return res.status(404).json({
         error:
           "ARX-LOGIN-003: This Arxzen account is not registered."
       });
     }
 
-    const isRegistered =
-      registeredUser.user_metadata?.arxzen_registered === true;
-
-    if (!isRegistered) {
+    if (
+      existingUser.user_metadata?.arxzen_registered !== true
+    ) {
       return res.status(403).json({
         error:
           "ARX-LOGIN-004: This account is not registered with Arxzen."
@@ -210,31 +198,24 @@ async function forgotPassword(req, res, next) {
       });
     }
 
-    const frontend = process.env.FRONTEND_URL;
-
-    if (!frontend) {
-      return res.status(500).json({
-        error:
-          "ARX-PASS-000: FRONTEND_URL is not configured."
-      });
-    }
-
-    const registeredUser =
+    const existingUser =
       await findAuthUserByEmail(cleanEmail);
 
-    if (!registeredUser) {
+    if (!existingUser) {
       return res.status(404).json({
         error:
           "ARX-PASS-003: This Arxzen account is not registered."
       });
     }
 
+    const frontend = getFrontendUrl();
+
     const { error } =
       await authClient.auth.resetPasswordForEmail(
         cleanEmail,
         {
           redirectTo:
-            `${frontend.replace(/\/$/, "")}/reset-password`
+            `${frontend}/reset-password`
         }
       );
 
@@ -274,8 +255,7 @@ async function verifyEmail(req, res, next) {
     if (error) {
       return res.status(400).json({
         error:
-          "ARX-VERIFY-002: " +
-          error.message
+          "ARX-VERIFY-002: " + error.message
       });
     }
 
@@ -297,21 +277,14 @@ async function getSession(req, res) {
 
 async function googleOAuth(req, res, next) {
   try {
-    const backend = process.env.BACKEND_URL;
-
-    if (!backend) {
-      return res.status(500).json({
-        error:
-          "ARX-OAUTH-GOOGLE-000: BACKEND_URL is not configured."
-      });
-    }
+    const frontend = getFrontendUrl();
 
     const { data, error } =
       await authClient.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo:
-            `${backend.replace(/\/$/, "")}/api/auth/oauth/google/callback`
+            `${frontend}/oauth/callback`
         }
       });
 
@@ -329,87 +302,16 @@ async function googleOAuth(req, res, next) {
   }
 }
 
-async function googleOAuthCallback(req, res, next) {
-  try {
-    const { code } = req.query;
-
-    if (!code) {
-      return res.status(400).json({
-        error:
-          "ARX-OAUTH-GOOGLE-002: Authorization code is missing."
-      });
-    }
-
-    const { data, error } =
-      await authClient.auth.exchangeCodeForSession(
-        code
-      );
-
-    if (
-      error ||
-      !data?.session ||
-      !data?.user
-    ) {
-      return res.status(401).json({
-        error:
-          "ARX-OAUTH-GOOGLE-003: Google authentication failed.",
-        details: error?.message || null
-      });
-    }
-
-    const user = data.user;
-
-    const registered =
-      user.user_metadata?.arxzen_registered === true;
-
-    if (!registered) {
-      await supabase.auth.admin.deleteUser(
-        user.id
-      );
-
-      return res.status(403).json({
-        error:
-          "ARX-OAUTH-GOOGLE-005: This Google account is not registered with Arxzen."
-      });
-    }
-
-    const frontend = getFrontendUrl();
-
-    const accessToken =
-      encodeURIComponent(
-        data.session.access_token
-      );
-
-    const refreshToken =
-      encodeURIComponent(
-        data.session.refresh_token
-      );
-
-    return res.redirect(
-      `${frontend}/home?oauth=google&access_token=${accessToken}&refresh_token=${refreshToken}`
-    );
-  } catch (error) {
-    next(error);
-  }
-}
-
 async function discordOAuth(req, res, next) {
   try {
-    const backend = process.env.BACKEND_URL;
-
-    if (!backend) {
-      return res.status(500).json({
-        error:
-          "ARX-OAUTH-DISCORD-000: BACKEND_URL is not configured."
-      });
-    }
+    const frontend = getFrontendUrl();
 
     const { data, error } =
       await authClient.auth.signInWithOAuth({
         provider: "discord",
         options: {
           redirectTo:
-            `${backend.replace(/\/$/, "")}/api/auth/oauth/discord/callback`
+            `${frontend}/oauth/callback`
         }
       });
 
@@ -427,65 +329,44 @@ async function discordOAuth(req, res, next) {
   }
 }
 
-async function discordOAuthCallback(req, res, next) {
+async function oauthSession(req, res, next) {
   try {
-    const { code } = req.query;
+    const header = req.headers.authorization;
 
-    if (!code) {
-      return res.status(400).json({
+    if (!header || !header.startsWith("Bearer ")) {
+      return res.status(401).json({
         error:
-          "ARX-OAUTH-DISCORD-002: Authorization code is missing."
+          "ARX-OAUTH-SESSION-001: Authentication token is required."
       });
     }
 
-    const { data, error } =
-      await authClient.auth.exchangeCodeForSession(
-        code
-      );
+    const token = header.substring(7);
 
-    if (
-      error ||
-      !data?.session ||
-      !data?.user
-    ) {
+    const { data, error } =
+      await authClient.auth.getUser(token);
+
+    if (error || !data?.user) {
       return res.status(401).json({
         error:
-          "ARX-OAUTH-DISCORD-003: Discord authentication failed.",
-        details: error?.message || null
+          "ARX-OAUTH-SESSION-002: Invalid or expired authentication token."
       });
     }
 
     const user = data.user;
 
-    const registered =
-      user.user_metadata?.arxzen_registered === true;
-
-    if (!registered) {
-      await supabase.auth.admin.deleteUser(
-        user.id
-      );
-
+    if (
+      user.user_metadata?.arxzen_registered !== true
+    ) {
       return res.status(403).json({
         error:
-          "ARX-OAUTH-DISCORD-005: This Discord account is not registered with Arxzen."
+          "ARX-OAUTH-SESSION-003: This account is not registered with Arxzen."
       });
     }
 
-    const frontend = getFrontendUrl();
-
-    const accessToken =
-      encodeURIComponent(
-        data.session.access_token
-      );
-
-    const refreshToken =
-      encodeURIComponent(
-        data.session.refresh_token
-      );
-
-    return res.redirect(
-      `${frontend}/home?oauth=discord&access_token=${accessToken}&refresh_token=${refreshToken}`
-    );
+    return res.json({
+      message: "OAuth authentication successful",
+      user
+    });
   } catch (error) {
     next(error);
   }
@@ -499,10 +380,6 @@ module.exports = {
   verifyEmail,
   getSession,
   googleOAuth,
-  googleOAuthCallback,
   discordOAuth,
-  discordOAuthCallback
-};
-  discordOAuth,
-  discordOAuthCallback
+  oauthSession
 };
