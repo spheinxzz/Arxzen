@@ -22,21 +22,78 @@ export function AuthProvider({ children }) {
     let mounted = true;
 
     async function restoreSession() {
-      const token = localStorage.getItem("arxzen_access_token");
-
-      if (!token) {
-        if (mounted) setLoading(false);
-        return;
-      }
-
       try {
-        const data = await getSession();
+        const params =
+          new URLSearchParams(
+            window.location.search
+          );
+
+        const accessToken =
+          params.get("access_token");
+
+        const refreshToken =
+          params.get("refresh_token");
+
+        if (accessToken) {
+          localStorage.setItem(
+            "arxzen_access_token",
+            accessToken
+          );
+        }
+
+        if (refreshToken) {
+          localStorage.setItem(
+            "arxzen_refresh_token",
+            refreshToken
+          );
+        }
+
+        if (
+          accessToken ||
+          refreshToken
+        ) {
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+          );
+        }
+
+        const token =
+          localStorage.getItem(
+            "arxzen_access_token"
+          );
+
+        if (!token) {
+          if (mounted) {
+            setUser(null);
+            setLoading(false);
+          }
+
+          return;
+        }
+
+        const data =
+          await getSession();
 
         if (mounted) {
-          setUser(data.user || null);
+          setUser(
+            data?.user || null
+          );
         }
-      } catch {
-        localStorage.removeItem("arxzen_access_token");
+      } catch (error) {
+        console.error(
+          "Session restore failed:",
+          error
+        );
+
+        localStorage.removeItem(
+          "arxzen_access_token"
+        );
+
+        localStorage.removeItem(
+          "arxzen_refresh_token"
+        );
 
         if (mounted) {
           setUser(null);
@@ -55,9 +112,20 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  async function login(email, password) {
-    const data = await apiLogin(email, password);
-    setUser(data.user || null);
+  async function login(
+    email,
+    password
+  ) {
+    const data =
+      await apiLogin(
+        email,
+        password
+      );
+
+    setUser(
+      data?.user || null
+    );
+
     return data;
   }
 
@@ -87,7 +155,8 @@ export function AuthProvider({ children }) {
 }
 
 export function useAuthContext() {
-  const context = useContext(AuthContext);
+  const context =
+    useContext(AuthContext);
 
   if (!context) {
     throw new Error(
