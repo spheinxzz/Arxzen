@@ -1,24 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-import {
-  getSession
-} from "../services/authService";
+import { getSession } from "../services/authService";
 
 export default function OAuthCallback() {
   const navigate = useNavigate();
 
   const [error, setError] = useState("");
-  const [processing, setProcessing] =
-    useState(true);
+  const [processing, setProcessing] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
     async function completeOAuth() {
       try {
-        const hash =
-          window.location.hash;
+        const hash = window.location.hash;
 
         if (!hash) {
           throw new Error(
@@ -26,36 +21,21 @@ export default function OAuthCallback() {
           );
         }
 
-        const params =
-          new URLSearchParams(
-            hash.substring(1)
-          );
+        const params = new URLSearchParams(hash.substring(1));
 
-        const accessToken =
-          params.get("access_token");
-
-        const refreshToken =
-          params.get("refresh_token");
-
-        const expiresIn =
-          params.get("expires_in");
-
-        const tokenType =
-          params.get("token_type");
-
-        const oauthError =
-          params.get("error");
-
-        const oauthErrorDescription =
-          params.get(
-            "error_description"
-          );
+        const accessToken = params.get("access_token");
+        const refreshToken = params.get("refresh_token");
+        const expiresIn = params.get("expires_in");
+        const tokenType = params.get("token_type");
+        const oauthError = params.get("error");
+        const oauthErrorDescription = params.get(
+          "error_description"
+        );
 
         if (oauthError) {
           throw new Error(
             `ARX-OAUTH-002: ${
-              oauthErrorDescription ||
-              oauthError
+              oauthErrorDescription || oauthError
             }`
           );
         }
@@ -65,11 +45,6 @@ export default function OAuthCallback() {
             "ARX-OAUTH-003: Access token is missing."
           );
         }
-
-        /*
-         * Store the session token used by
-         * AuthContext/api.js.
-         */
 
         localStorage.setItem(
           "arxzen_access_token",
@@ -97,31 +72,21 @@ export default function OAuthCallback() {
           );
         }
 
-        /*
-         * Remove the OAuth hash immediately so
-         * tokens don't remain visible in the URL.
-         */
-
         window.history.replaceState(
           {},
           document.title,
           "/oauth/callback"
         );
 
-        /*
-         * Verify the token against the backend
-         * before sending the user to Home.
-         */
+        const session = await getSession();
 
-        const session =
-          await getSession();
-
-        if (
-          !session ||
-          !session.user
-        ) {
+        if (!session?.user) {
           localStorage.removeItem(
             "arxzen_access_token"
+          );
+
+          localStorage.removeItem(
+            "arxzen_refresh_token"
           );
 
           throw new Error(
@@ -133,6 +98,8 @@ export default function OAuthCallback() {
           return;
         }
 
+        setProcessing(false);
+
         navigate("/home", {
           replace: true,
           state: {
@@ -141,10 +108,7 @@ export default function OAuthCallback() {
           }
         });
       } catch (err) {
-        console.error(
-          "OAuth callback error:",
-          err
-        );
+        console.error("OAuth callback error:", err);
 
         if (!mounted) {
           return;
@@ -152,6 +116,10 @@ export default function OAuthCallback() {
 
         localStorage.removeItem(
           "arxzen_access_token"
+        );
+
+        localStorage.removeItem(
+          "arxzen_refresh_token"
         );
 
         setError(
@@ -172,12 +140,18 @@ export default function OAuthCallback() {
 
   if (processing && !error) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#07090d] text-white">
-        <div className="text-center">
-          <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-white/10 border-t-blue-400" />
+      <main className="flex min-h-screen items-center justify-center bg-[#07090d] px-5 text-white">
+        <div className="w-full max-w-md text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.07] bg-white/[0.025]">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-blue-400" />
+          </div>
 
-          <p className="mt-5 text-sm text-zinc-500">
-            Completing authentication...
+          <h1 className="mt-5 text-xl font-semibold">
+            Completing authentication
+          </h1>
+
+          <p className="mt-2 text-sm text-zinc-500">
+            Verifying your Arxzen account...
           </p>
         </div>
       </main>
@@ -185,9 +159,9 @@ export default function OAuthCallback() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#07090d] px-6 text-white">
+    <main className="flex min-h-screen items-center justify-center bg-[#07090d] px-5 text-white">
       <div className="w-full max-w-md rounded-2xl border border-white/[0.07] bg-[#0b0d12] p-8 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10 text-red-400">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/[0.08] text-red-400">
           !
         </div>
 
