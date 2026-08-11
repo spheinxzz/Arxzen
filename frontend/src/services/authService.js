@@ -93,78 +93,47 @@ export async function getCurrentUser() {
 export async function getCurrentAccounts() {
   const user = await getCurrentUser();
 
-  if (!user) {
-    return [];
-  }
-
-  return [user];
+  return user ? [user] : [];
 }
 
 export async function isLoggedIn() {
   try {
-    const user = await getCurrentUser();
-    return !!user;
+    return !!(await getCurrentUser());
   } catch {
     return false;
   }
 }
 
-export function loginWithGoogle(options = {}) {
-  const mode = options.mode || "login";
-  const testerCode = options.testerCode || "";
-
-  const params = new URLSearchParams();
-
-  params.set("mode", mode);
-
-  if (testerCode) {
-    params.set("testerCode", testerCode);
-  }
-
+export function loginWithGoogle() {
   const baseUrl =
     import.meta.env.VITE_API_URL || "/api";
 
   window.location.href =
-    `${baseUrl}/auth/oauth/google?${params.toString()}`;
+    `${baseUrl}/auth/oauth/google`;
 }
 
-export function loginWithDiscord(options = {}) {
-  const mode = options.mode || "login";
-  const testerCode = options.testerCode || "";
-
-  const params = new URLSearchParams();
-
-  params.set("mode", mode);
-
-  if (testerCode) {
-    params.set("testerCode", testerCode);
-  }
-
+export function loginWithDiscord() {
   const baseUrl =
     import.meta.env.VITE_API_URL || "/api";
 
   window.location.href =
-    `${baseUrl}/auth/oauth/discord?${params.toString()}`;
+    `${baseUrl}/auth/oauth/discord`;
 }
 
-export function restoreOAuthSession() {
-  const params =
-    new URLSearchParams(
-      window.location.search
-    );
-
-  const accessToken =
-    params.get("access_token");
-
-  const refreshToken =
-    params.get("refresh_token");
-
-  if (accessToken) {
-    localStorage.setItem(
-      "arxzen_access_token",
-      accessToken
+export async function completeOAuthSession(
+  accessToken,
+  refreshToken
+) {
+  if (!accessToken) {
+    throw new Error(
+      "ARX-OAUTH-FRONTEND-001: OAuth access token is missing."
     );
   }
+
+  localStorage.setItem(
+    "arxzen_access_token",
+    accessToken
+  );
 
   if (refreshToken) {
     localStorage.setItem(
@@ -173,10 +142,38 @@ export function restoreOAuthSession() {
     );
   }
 
-  return {
-    accessToken,
-    refreshToken
-  };
+  const baseUrl =
+    import.meta.env.VITE_API_URL || "/api";
+
+  const response = await fetch(
+    `${baseUrl}/auth/oauth/session`,
+    {
+      method: "GET",
+      headers: {
+        Authorization:
+          `Bearer ${accessToken}`
+      }
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    localStorage.removeItem(
+      "arxzen_access_token"
+    );
+
+    localStorage.removeItem(
+      "arxzen_refresh_token"
+    );
+
+    throw new Error(
+      data?.error ||
+        "ARX-OAUTH-FRONTEND-002: OAuth authentication failed."
+    );
+  }
+
+  return data;
 }
 
 export async function forgotPassword(email) {
