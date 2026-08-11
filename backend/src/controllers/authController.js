@@ -1,5 +1,55 @@
 const { supabase, authClient } = require("../config/supabase");
 
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function getFrontendUrl() {
+  const frontend = process.env.FRONTEND_URL;
+
+  if (!frontend) {
+    throw new Error("FRONTEND_URL is not configured.");
+  }
+
+  return frontend.replace(/\/$/, "");
+}
+
+async function findAuthUserByEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+
+  let page = 1;
+  const perPage = 1000;
+
+  while (true) {
+    const { data, error } =
+      await supabase.auth.admin.listUsers({
+        page,
+        perPage
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    const users = data?.users || [];
+
+    const user = users.find(
+      (account) =>
+        normalizeEmail(account.email) === normalizedEmail
+    );
+
+    if (user) {
+      return user;
+    }
+
+    if (users.length < perPage) {
+      return null;
+    }
+
+    page += 1;
+  }
+}
+
 async function register(req, res, next) {
   try {
     const {
@@ -7,31 +57,74 @@ async function register(req, res, next) {
       password,
       username,
       displayName
-    } = req.body;
+    } = req.body || {};
 
-    const cleanEmail = String(email || "").trim().toLowerCase();
+    const cleanEmail = normalizeEmail(email);
     const cleanUsername = String(username || "").trim();
-    const cleanDisplayName = String(displayName || "").trim();
+    const cleanDisplayName =
+      String(displayName || "").trim();
 
-    if (!cleanEmail || !password || !cleanUsername || !cleanDisplayName) {
+    if (!cleanEmail) {
       return res.status(400).json({
-        error: "ARX-REG-000: Email, password, username, and display name are required."
+        error: "ARX-REG-002: Email is required."
       });
     }
 
-    const { data, error } = await supabase.auth.admin.createUser({
-      email: cleanEmail,
-      password,
-      email_confirm: false,
-      user_metadata: {
-        username: cleanUsername,
-        display_name: cleanDisplayName
-      }
-    });
+    if (!password) {
+      return res.status(400).json({
+        error: "ARX-REG-003: Password is required."
+      });
+    }
+
+    if (!cleanUsername) {
+      return res.status(400).json({
+        error: "ARX-REG-004: Username is required."
+      });
+    }
+
+    if (!cleanDisplayName) {
+      return res.status(400).json({
+        error: "ARX-REG-005: Display name is required."
+      });
+    }
+
+    const existingUser =
+      await findAuthUserByEmail(cleanEmail);
+
+    if (existingUser) {
+      return res.status(409).json({
+        error:
+          "ARX-REG-006: An Arxzen account with this email address is already registered."
+      });
+    }
+
+    const { data, error } =
+      await supabase.auth.admin.createUser({
+        email: cleanEmail,
+        password,
+        email_confirm: false,
+        user_metadata: {
+          username: cleanUsername,
+          display_name: cleanDisplayName,
+          arxzen_registered: true
+        }
+      });
 
     if (error) {
+      if (
+        error.message
+          ?.toLowerCase()
+          .includes("already been registered")
+      ) {
+        return res.status(409).json({
+          error:
+            "ARX-REG-006: An Arxzen account with this email address is already registered."
+        });
+      }
+
       return res.status(400).json({
-        error: "ARX-REG-001: " + error.message
+        error:
+          "ARX-REG-001: " + error.message
       });
     }
 
@@ -46,13 +139,34 @@ async function register(req, res, next) {
 
 async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
 
-    const cleanEmail = String(email || "").trim().toLowerCase();
+    const cleanEmail = normalizeEmail(email);
 
     if (!cleanEmail || !password) {
       return res.status(400).json({
-        error: "ARX-LOGIN-000: Email and password are required."
+        error:
+          "ARX-LOGIN-002: Email and password are required."
+      });
+    }
+
+    const registeredUser =
+      await findAuthUserByEmail(cleanEmail);
+
+    if (!registeredUser) {
+      return res.status(404).json({
+        error:
+          "ARX-LOGIN-003: This Arxzen account is not registered."
+      });
+    }
+
+    const isRegistered =
+      registeredUser.user_metadata?.arxzen_registered === true;
+
+    if (!isRegistered) {
+      return res.status(403).json({
+        error:
+          "ARX-LOGIN-004: This account is not registered with Arxzen."
       });
     }
 
@@ -64,7 +178,8 @@ async function login(req, res, next) {
 
     if (error) {
       return res.status(401).json({
-        error: "ARX-LOGIN-001: " + error.message
+        error:
+          "ARX-LOGIN-001: " + error.message
       });
     }
 
@@ -87,8 +202,7 @@ async function logout(req, res) {
 async function forgotPassword(req, res, next) {
   try {
     const { email } = req.body || {};
-
-    const cleanEmail = String(email || "").trim().toLowerCase();
+    const cleanEmail = normalizeEmail(email);
 
     if (!cleanEmail) {
       return res.status(400).json({
@@ -105,17 +219,29 @@ async function forgotPassword(req, res, next) {
       });
     }
 
+    const registeredUser =
+      await findAuthUserByEmail(cleanEmail);
+
+    if (!registeredUser) {
+      return res.status(404).json({
+        error:
+          "ARX-PASS-003: This Arxzen account is not registered."
+      });
+    }
+
     const { error } =
       await authClient.auth.resetPasswordForEmail(
         cleanEmail,
         {
-          redirectTo: `${frontend}/reset-password`
+          redirectTo:
+            `${frontend.replace(/\/$/, "")}/reset-password`
         }
       );
 
     if (error) {
       return res.status(400).json({
-        error: "ARX-PASS-002: " + error.message
+        error:
+          "ARX-PASS-002: " + error.message
       });
     }
 
@@ -131,13 +257,7 @@ async function verifyEmail(req, res, next) {
   try {
     const { email, code } = req.body || {};
 
-    const cleanEmail = String(email || "")
-      .trim()
-      .toLowerCase();
-
-    const cleanCode = String(code || "").trim();
-
-    if (!cleanEmail || !cleanCode) {
+    if (!email || !code) {
       return res.status(400).json({
         error:
           "ARX-VERIFY-001: Email and verification code are required."
@@ -146,8 +266,8 @@ async function verifyEmail(req, res, next) {
 
     const { data, error } =
       await authClient.auth.verifyOtp({
-        email: cleanEmail,
-        token: cleanCode,
+        email: normalizeEmail(email),
+        token: String(code),
         type: "email"
       });
 
@@ -171,7 +291,7 @@ async function verifyEmail(req, res, next) {
 
 async function getSession(req, res) {
   return res.json({
-    user: req.user || null
+    user: req.user
   });
 }
 
@@ -191,7 +311,7 @@ async function googleOAuth(req, res, next) {
         provider: "google",
         options: {
           redirectTo:
-            `${backend}/api/auth/oauth/google/callback`
+            `${backend.replace(/\/$/, "")}/api/auth/oauth/google/callback`
         }
       });
 
@@ -221,7 +341,9 @@ async function googleOAuthCallback(req, res, next) {
     }
 
     const { data, error } =
-      await authClient.auth.exchangeCodeForSession(code);
+      await authClient.auth.exchangeCodeForSession(
+        code
+      );
 
     if (
       error ||
@@ -235,30 +357,23 @@ async function googleOAuthCallback(req, res, next) {
       });
     }
 
-    const frontend = process.env.FRONTEND_URL;
+    const user = data.user;
 
-    if (!frontend) {
-      return res.status(500).json({
+    const registered =
+      user.user_metadata?.arxzen_registered === true;
+
+    if (!registered) {
+      await supabase.auth.admin.deleteUser(
+        user.id
+      );
+
+      return res.status(403).json({
         error:
-          "ARX-OAUTH-GOOGLE-004: FRONTEND_URL is not configured."
+          "ARX-OAUTH-GOOGLE-005: This Google account is not registered with Arxzen."
       });
     }
 
-    const user = data.user;
-    const metadata = user.user_metadata || {};
-
-    const email = user.email || "";
-    const username =
-      metadata.username ||
-      metadata.user_name ||
-      email.split("@")[0] ||
-      "username";
-
-    const displayName =
-      metadata.display_name ||
-      metadata.full_name ||
-      metadata.name ||
-      username;
+    const frontend = getFrontendUrl();
 
     const accessToken =
       encodeURIComponent(
@@ -270,18 +385,8 @@ async function googleOAuthCallback(req, res, next) {
         data.session.refresh_token
       );
 
-    const userData = encodeURIComponent(
-      JSON.stringify({
-        id: user.id,
-        email,
-        username,
-        displayName,
-        provider: "google"
-      })
-    );
-
     return res.redirect(
-      `${frontend}/home?oauth=google&access_token=${accessToken}&refresh_token=${refreshToken}&user=${userData}`
+      `${frontend}/home?oauth=google&access_token=${accessToken}&refresh_token=${refreshToken}`
     );
   } catch (error) {
     next(error);
@@ -304,7 +409,7 @@ async function discordOAuth(req, res, next) {
         provider: "discord",
         options: {
           redirectTo:
-            `${backend}/api/auth/oauth/discord/callback`
+            `${backend.replace(/\/$/, "")}/api/auth/oauth/discord/callback`
         }
       });
 
@@ -334,7 +439,9 @@ async function discordOAuthCallback(req, res, next) {
     }
 
     const { data, error } =
-      await authClient.auth.exchangeCodeForSession(code);
+      await authClient.auth.exchangeCodeForSession(
+        code
+      );
 
     if (
       error ||
@@ -348,32 +455,23 @@ async function discordOAuthCallback(req, res, next) {
       });
     }
 
-    const frontend = process.env.FRONTEND_URL;
+    const user = data.user;
 
-    if (!frontend) {
-      return res.status(500).json({
+    const registered =
+      user.user_metadata?.arxzen_registered === true;
+
+    if (!registered) {
+      await supabase.auth.admin.deleteUser(
+        user.id
+      );
+
+      return res.status(403).json({
         error:
-          "ARX-OAUTH-DISCORD-004: FRONTEND_URL is not configured."
+          "ARX-OAUTH-DISCORD-005: This Discord account is not registered with Arxzen."
       });
     }
 
-    const user = data.user;
-    const metadata = user.user_metadata || {};
-
-    const email = user.email || "";
-
-    const username =
-      metadata.username ||
-      metadata.user_name ||
-      metadata.preferred_username ||
-      email.split("@")[0] ||
-      "username";
-
-    const displayName =
-      metadata.display_name ||
-      metadata.full_name ||
-      metadata.name ||
-      username;
+    const frontend = getFrontendUrl();
 
     const accessToken =
       encodeURIComponent(
@@ -385,18 +483,8 @@ async function discordOAuthCallback(req, res, next) {
         data.session.refresh_token
       );
 
-    const userData = encodeURIComponent(
-      JSON.stringify({
-        id: user.id,
-        email,
-        username,
-        displayName,
-        provider: "discord"
-      })
-    );
-
     return res.redirect(
-      `${frontend}/home?oauth=discord&access_token=${accessToken}&refresh_token=${refreshToken}&user=${userData}`
+      `${frontend}/home?oauth=discord&access_token=${accessToken}&refresh_token=${refreshToken}`
     );
   } catch (error) {
     next(error);
@@ -412,6 +500,9 @@ module.exports = {
   getSession,
   googleOAuth,
   googleOAuthCallback,
+  discordOAuth,
+  discordOAuthCallback
+};
   discordOAuth,
   discordOAuthCallback
 };
