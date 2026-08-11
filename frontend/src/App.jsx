@@ -13,6 +13,7 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyEmail from "./pages/VerifyEmail";
 import AccountSetup from "./pages/AccountSetup";
+import OAuthCallback from "./pages/OAuthCallback";
 
 import Home from "./pages/Home";
 import Messages from "./pages/Messages";
@@ -23,17 +24,27 @@ import Security from "./pages/Security";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
-import OAuthCallback from "./pages/OAuthCallback";
-
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Landing />} />
 
-        <Route path="/login" element={<Login />} />
+        {/* Public */}
 
-        <Route path="/register" element={<Register />} />
+        <Route
+          path="/"
+          element={<Landing />}
+        />
+
+        <Route
+          path="/login"
+          element={<Login />}
+        />
+
+        <Route
+          path="/register"
+          element={<Register />}
+        />
 
         <Route
           path="/oauth/callback"
@@ -55,7 +66,11 @@ export default function App() {
           element={<AccountSetup />}
         />
 
-        <Route element={<ProtectedRoute />}>
+        {/* Protected */}
+
+        <Route
+          element={<ProtectedRoute />}
+        >
           <Route
             path="/home"
             element={<Home />}
@@ -102,6 +117,8 @@ export default function App() {
           />
         </Route>
 
+        {/* Legacy app route */}
+
         <Route
           path="/app"
           element={
@@ -112,10 +129,13 @@ export default function App() {
           }
         />
 
+        {/* 404 */}
+
         <Route
           path="*"
           element={<NotFound />}
         />
+
       </Routes>
     </BrowserRouter>
   );
