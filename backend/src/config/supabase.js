@@ -9,10 +9,15 @@ const supabase = createClient(
   supabaseServiceRoleKey
 );
 
-const supabaseAuth = createClient(
+const authClient = createClient(
   supabaseUrl,
-  supabaseAnonKey
+  supabaseAnonKey,
+  {
+    auth: {
+      flowType: "pkce"
+    }
+  }
 );
 
 module.exports = supabase;
-module.exports.authClient = supabaseAuth;
+module.exports.authClient = authClient;
