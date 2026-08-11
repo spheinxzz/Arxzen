@@ -1,13 +1,11 @@
-const API_BASE_URL =
+const API_BASE =
   import.meta.env.VITE_API_URL ||
   "https://arxzen.onrender.com/api";
 
-export async function apiRequest(
-  endpoint,
-  options = {}
-) {
-  const token =
-    localStorage.getItem("arxzen_access_token");
+export async function apiRequest(path, options = {}) {
+  const token = localStorage.getItem(
+    "arxzen_access_token"
+  );
 
   const headers = {
     "Content-Type": "application/json",
@@ -21,15 +19,13 @@ export async function apiRequest(
   let response;
 
   try {
-    response = await fetch(
-      `${API_BASE_URL}${endpoint}`,
-      {
-        ...options,
-        headers,
-        credentials: "include",
-      }
-    );
+    response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+    });
   } catch (error) {
+    console.error("API connection error:", error);
+
     throw new Error(
       "ARX-NET-001: Unable to connect to the Arxzen server."
     );
@@ -44,15 +40,25 @@ export async function apiRequest(
   }
 
   if (!response.ok) {
-    throw new Error(
+    const message =
+      data?.error?.message ||
+      data?.message ||
       data?.error ||
-      `ARX-NET-${response.status}: Arxzen server returned HTTP ${response.status}.`
-    );
+      `Request failed with HTTP ${response.status}.`;
+
+    const code =
+      data?.error?.code ||
+      data?.code ||
+      `ARX-API-${response.status}`;
+
+    const error = new Error(`${code}: ${message}`);
+
+    error.code = code;
+    error.status = response.status;
+    error.data = data;
+
+    throw error;
   }
 
   return data;
-}
-
-export function getApiBaseUrl() {
-  return API_BASE_URL;
 }
