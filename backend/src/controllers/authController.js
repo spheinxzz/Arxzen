@@ -83,10 +83,7 @@ async function forgotPassword(req, res, next) {
         String(email).trim().toLowerCase(),
         {
           redirectTo:
-            `${
-              process.env.FRONTEND_URL ||
-              "http://localhost:5173"
-            }/reset-password`,
+            `${process.env.FRONTEND_URL}/reset-password`,
         }
       );
 
@@ -148,23 +145,23 @@ async function getSession(req, res) {
   });
 }
 
-/*
-|--------------------------------------------------------------------------
-| Google OAuth
-|--------------------------------------------------------------------------
-*/
-
 async function googleOAuth(req, res, next) {
   try {
+    const backend = process.env.BACKEND_URL;
+
+    if (!backend) {
+      return res.status(500).json({
+        error:
+          "ARX-OAUTH-GOOGLE-000: BACKEND_URL is not configured.",
+      });
+    }
+
     const { data, error } =
       await authClient.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo:
-            `${
-              process.env.BACKEND_URL ||
-              "http://localhost:5000"
-            }/api/auth/oauth/google/callback`,
+            `${backend}/api/auth/oauth/google/callback`,
         },
       });
 
@@ -205,13 +202,14 @@ async function googleOAuthCallback(req, res, next) {
       });
     }
 
-    const frontend =
-      process.env.FRONTEND_URL ||
-      "http://localhost:5173";
+    const frontend = process.env.FRONTEND_URL;
 
-    /*
-     * Registration/database check will be added here.
-     */
+    if (!frontend) {
+      return res.status(500).json({
+        error:
+          "ARX-OAUTH-GOOGLE-004: FRONTEND_URL is not configured.",
+      });
+    }
 
     return res.redirect(
       `${frontend}/home?oauth=google`
@@ -221,23 +219,23 @@ async function googleOAuthCallback(req, res, next) {
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Discord OAuth
-|--------------------------------------------------------------------------
-*/
-
 async function discordOAuth(req, res, next) {
   try {
+    const backend = process.env.BACKEND_URL;
+
+    if (!backend) {
+      return res.status(500).json({
+        error:
+          "ARX-OAUTH-DISCORD-000: BACKEND_URL is not configured.",
+      });
+    }
+
     const { data, error } =
       await authClient.auth.signInWithOAuth({
         provider: "discord",
         options: {
           redirectTo:
-            `${
-              process.env.BACKEND_URL ||
-              "http://localhost:5000"
-            }/api/auth/oauth/discord/callback`,
+            `${backend}/api/auth/oauth/discord/callback`,
         },
       });
 
@@ -278,13 +276,14 @@ async function discordOAuthCallback(req, res, next) {
       });
     }
 
-    const frontend =
-      process.env.FRONTEND_URL ||
-      "http://localhost:5173";
+    const frontend = process.env.FRONTEND_URL;
 
-    /*
-     * Registration/database check will be added here.
-     */
+    if (!frontend) {
+      return res.status(500).json({
+        error:
+          "ARX-OAUTH-DISCORD-004: FRONTEND_URL is not configured.",
+      });
+    }
 
     return res.redirect(
       `${frontend}/home?oauth=discord`
@@ -301,10 +300,8 @@ module.exports = {
   forgotPassword,
   verifyEmail,
   getSession,
-
   googleOAuth,
   googleOAuthCallback,
-
   discordOAuth,
   discordOAuthCallback,
 };

@@ -1,35 +1,16 @@
 const express = require("express");
 const controller = require("../controllers/authController");
 const auth = require("../middleware/authMiddleware");
-const { validateBody } = require("../middleware/validationMiddleware");
+const {
+  validateBody,
+} = require("../middleware/validationMiddleware");
 
 const router = express.Router();
-
-
-router.get(
-  "/oauth/google",
-  controller.googleOAuth
-);
-
-router.get(
-  "/oauth/google/callback",
-  controller.googleOAuthCallback
-);
-
-router.get(
-  "/oauth/discord",
-  controller.discordOAuth
-);
-
-router.get(
-  "/oauth/discord/callback",
-  controller.discordOAuthCallback
-);
 
 router.get("/", (req, res) => {
   res.json({
     service: "Arxzen Authentication",
-    status: "online"
+    status: "online",
   });
 });
 
@@ -67,6 +48,26 @@ router.get(
   "/session",
   auth,
   controller.getSession
+);
+
+router.get(
+  "/oauth/google",
+  controller.googleOAuth
+);
+
+router.get(
+  "/oauth/google/callback",
+  controller.googleOAuthCallback
+);
+
+router.get(
+  "/oauth/discord",
+  controller.discordOAuth
+);
+
+router.get(
+  "/oauth/discord/callback",
+  controller.discordOAuthCallback
 );
 
 module.exports = router;
