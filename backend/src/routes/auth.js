@@ -2,7 +2,7 @@ const express = require("express");
 const controller = require("../controllers/authController");
 const auth = require("../middleware/authMiddleware");
 const {
-  validateBody,
+  validateBody
 } = require("../middleware/validationMiddleware");
 
 const router = express.Router();
@@ -10,7 +10,7 @@ const router = express.Router();
 router.get("/", (req, res) => {
   res.json({
     service: "Arxzen Authentication",
-    status: "online",
+    status: "online"
   });
 });
 
@@ -56,18 +56,13 @@ router.get(
 );
 
 router.get(
-  "/oauth/google/callback",
-  controller.googleOAuthCallback
-);
-
-router.get(
   "/oauth/discord",
   controller.discordOAuth
 );
 
 router.get(
-  "/oauth/discord/callback",
-  controller.discordOAuthCallback
+  "/oauth/session",
+  controller.oauthSession
 );
 
 module.exports = router;
