@@ -23,6 +23,8 @@ import Security from "./pages/Security";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
+import OAuthCallback from "./pages/OAuthCallback";
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -32,6 +34,11 @@ export default function App() {
         <Route path="/login" element={<Login />} />
 
         <Route path="/register" element={<Register />} />
+
+        <Route
+          path="/oauth/callback"
+          element={<OAuthCallback />}
+        />
 
         <Route
           path="/forgot-password"
