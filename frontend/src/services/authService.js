@@ -1,13 +1,11 @@
 import { apiRequest } from "./api";
 
-
-
 export async function register({
   email,
   password,
   username,
   displayName,
-  testerCode,
+  testerCode
 }) {
   return apiRequest("/auth/register", {
     method: "POST",
@@ -16,35 +14,26 @@ export async function register({
       password,
       username,
       displayName,
-      testerCode,
-    }),
+      testerCode
+    })
   });
 }
 
-export async function registerAccount({
-  email,
-  password,
-  username,
-  displayName,
-  testerCode,
-}) {
-  return register({
-    email,
-    password,
-    username,
-    displayName,
-    testerCode,
-  });
+export async function registerAccount(account) {
+  return register(account);
 }
 
 export async function login(email, password) {
-  const data = await apiRequest("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({
-      email,
-      password,
-    }),
-  });
+  const data = await apiRequest(
+    "/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        email,
+        password
+      })
+    }
+  );
 
   if (data?.session?.access_token) {
     localStorage.setItem(
@@ -53,26 +42,38 @@ export async function login(email, password) {
     );
   }
 
+  if (data?.session?.refresh_token) {
+    localStorage.setItem(
+      "arxzen_refresh_token",
+      data.session.refresh_token
+    );
+  }
+
   return data;
 }
 
 export async function logout() {
   try {
-    return await apiRequest("/auth/logout", {
-      method: "POST",
-    });
+    return await apiRequest(
+      "/auth/logout",
+      {
+        method: "POST"
+      }
+    );
   } finally {
     localStorage.removeItem(
       "arxzen_access_token"
     );
+
+    localStorage.removeItem(
+      "arxzen_refresh_token"
+    );
+
+    localStorage.removeItem(
+      "arxzen_session"
+    );
   }
 }
-
-/*
-|--------------------------------------------------------------------------
-| Session
-|--------------------------------------------------------------------------
-*/
 
 export async function getSession() {
   return apiRequest("/auth/session");
@@ -80,97 +81,39 @@ export async function getSession() {
 
 export async function getCurrentUser() {
   const data = await getSession();
-
   return data?.user || null;
 }
 
 export async function getCurrentAccounts() {
   const user = await getCurrentUser();
-
-  if (!user) {
-    return [];
-  }
-
-  return [user];
+  return user ? [user] : [];
 }
 
 export async function isLoggedIn() {
   try {
-    const user = await getCurrentUser();
-
-    return !!user;
+    return !!(await getCurrentUser());
   } catch {
     return false;
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Google OAuth
-|--------------------------------------------------------------------------
-*/
-
-export async function loginWithGoogle(options = {}) {
-  const mode =
-    options.mode || "login";
-
-  const testerCode =
-    options.testerCode || "";
-
-  const params = new URLSearchParams();
-
-  params.set("mode", mode);
-
-  if (testerCode) {
-    params.set(
-      "testerCode",
-      testerCode
-    );
-  }
-
+export function loginWithGoogle() {
   const baseUrl =
-    import.meta.env.VITE_API_URL || "/api";
+    import.meta.env.VITE_API_URL ||
+    "/api";
 
   window.location.href =
-    `${baseUrl}/auth/oauth/google?${params.toString()}`;
+    `${baseUrl}/auth/oauth/google`;
 }
 
-/*
-|--------------------------------------------------------------------------
-| Discord OAuth
-|--------------------------------------------------------------------------
-*/
-
-export async function loginWithDiscord(options = {}) {
-  const mode =
-    options.mode || "login";
-
-  const testerCode =
-    options.testerCode || "";
-
-  const params = new URLSearchParams();
-
-  params.set("mode", mode);
-
-  if (testerCode) {
-    params.set(
-      "testerCode",
-      testerCode
-    );
-  }
-
+export function loginWithDiscord() {
   const baseUrl =
-    import.meta.env.VITE_API_URL || "/api";
+    import.meta.env.VITE_API_URL ||
+    "/api";
 
   window.location.href =
-    `${baseUrl}/auth/oauth/discord?${params.toString()}`;
+    `${baseUrl}/auth/oauth/discord`;
 }
-
-/*
-|--------------------------------------------------------------------------
-| Password Reset
-|--------------------------------------------------------------------------
-*/
 
 export async function forgotPassword(email) {
   return apiRequest(
@@ -178,8 +121,8 @@ export async function forgotPassword(email) {
     {
       method: "POST",
       body: JSON.stringify({
-        email: email.trim(),
-      }),
+        email: email.trim()
+      })
     }
   );
 }
@@ -194,26 +137,24 @@ export async function resetPassword(
       method: "POST",
       body: JSON.stringify({
         token,
-        password,
-      }),
+        password
+      })
     }
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| Email Verification
-|--------------------------------------------------------------------------
-*/
-
-export async function verifyEmail(token) {
+export async function verifyEmail(
+  email,
+  code
+) {
   return apiRequest(
     "/auth/verify-email",
     {
       method: "POST",
       body: JSON.stringify({
-        token,
-      }),
+        email,
+        code
+      })
     }
   );
 }
@@ -226,17 +167,11 @@ export async function resendVerificationEmail(
     {
       method: "POST",
       body: JSON.stringify({
-        email: email.trim(),
-      }),
+        email: email.trim()
+      })
     }
   );
 }
-
-/*
-|--------------------------------------------------------------------------
-| Password / Security
-|--------------------------------------------------------------------------
-*/
 
 export async function updatePassword(
   currentPassword,
@@ -248,8 +183,8 @@ export async function updatePassword(
       method: "PATCH",
       body: JSON.stringify({
         currentPassword,
-        newPassword,
-      }),
+        newPassword
+      })
     }
   );
 }
@@ -258,7 +193,7 @@ export async function enableTwoFactor() {
   return apiRequest(
     "/auth/2fa/enable",
     {
-      method: "POST",
+      method: "POST"
     }
   );
 }
@@ -267,7 +202,7 @@ export async function disableTwoFactor() {
   return apiRequest(
     "/auth/2fa/disable",
     {
-      method: "POST",
+      method: "POST"
     }
   );
 }
