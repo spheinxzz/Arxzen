@@ -27,48 +27,88 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-
-        {/* Public */}
         <Route path="/" element={<Landing />} />
+
         <Route path="/login" element={<Login />} />
+
         <Route path="/register" element={<Register />} />
+
         <Route
           path="/forgot-password"
           element={<ForgotPassword />}
         />
+
         <Route
           path="/verify-email"
           element={<VerifyEmail />}
         />
+
         <Route
           path="/account-setup"
           element={<AccountSetup />}
         />
 
-        {/* Protected */}
         <Route element={<ProtectedRoute />}>
-          <Route path="/home" element={<Home />} />
-          <Route path="/messages" element={<Messages />} />
-          <Route path="/messages/:conversationId" element={<Messages />} />
+          <Route
+            path="/home"
+            element={<Home />}
+          />
+
+          <Route
+            path="/messages"
+            element={<Messages />}
+          />
+
+          <Route
+            path="/messages/:conversationId"
+            element={<Messages />}
+          />
+
           <Route
             path="/notifications"
             element={<Notifications />}
           />
-          <Route path="/people" element={<People />} />
-          <Route path="/profile/:id?" element={<Profile />} />
-          <Route path="/security" element={<Security />} />
-          <Route path="/settings/security" element={<Security />} />
-          <Route path="/settings" element={<Settings />} />
+
+          <Route
+            path="/people"
+            element={<People />}
+          />
+
+          <Route
+            path="/profile/:id?"
+            element={<Profile />}
+          />
+
+          <Route
+            path="/security"
+            element={<Security />}
+          />
+
+          <Route
+            path="/settings/security"
+            element={<Security />}
+          />
+
+          <Route
+            path="/settings"
+            element={<Settings />}
+          />
         </Route>
 
         <Route
           path="/app"
-          element={<Navigate to="/home" replace />}
+          element={
+            <Navigate
+              to="/home"
+              replace
+            />
+          }
         />
 
-        {/* 404 */}
-        <Route path="*" element={<NotFound />} />
-
+        <Route
+          path="*"
+          element={<NotFound />}
+        />
       </Routes>
     </BrowserRouter>
   );
