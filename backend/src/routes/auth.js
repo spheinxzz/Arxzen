@@ -5,6 +5,27 @@ const { validateBody } = require("../middleware/validationMiddleware");
 
 const router = express.Router();
 
+
+router.get(
+  "/oauth/google",
+  controller.googleOAuth
+);
+
+router.get(
+  "/oauth/google/callback",
+  controller.googleOAuthCallback
+);
+
+router.get(
+  "/oauth/discord",
+  controller.discordOAuth
+);
+
+router.get(
+  "/oauth/discord/callback",
+  controller.discordOAuthCallback
+);
+
 router.get("/", (req, res) => {
   res.json({
     service: "Arxzen Authentication",

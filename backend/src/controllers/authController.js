@@ -7,28 +7,29 @@ async function register(req, res, next) {
       email,
       password,
       username,
-      displayName
+      displayName,
     } = req.body;
 
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: false,
-      user_metadata: {
-        username,
-        display_name: displayName
-      }
-    });
+    const { data, error } =
+      await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: false,
+        user_metadata: {
+          username,
+          display_name: displayName,
+        },
+      });
 
     if (error) {
       return res.status(400).json({
-        error: error.message
+        error: "ARX-REG-001: " + error.message,
       });
     }
 
     res.status(201).json({
       message: "Account created",
-      user: data.user
+      user: data.user,
     });
   } catch (error) {
     next(error);
@@ -42,19 +43,19 @@ async function login(req, res, next) {
     const { data, error } =
       await authClient.auth.signInWithPassword({
         email,
-        password
+        password,
       });
 
     if (error) {
       return res.status(401).json({
-        error: error.message
+        error: "ARX-LOGIN-001: " + error.message,
       });
     }
 
     res.json({
       message: "Login successful",
       user: data.user,
-      session: data.session
+      session: data.session,
     });
   } catch (error) {
     next(error);
@@ -63,7 +64,7 @@ async function login(req, res, next) {
 
 async function logout(req, res) {
   res.json({
-    message: "Logged out successfully"
+    message: "Logged out successfully",
   });
 }
 
@@ -73,25 +74,30 @@ async function forgotPassword(req, res, next) {
 
     if (!email || !String(email).trim()) {
       return res.status(400).json({
-        error: "Email is required"
+        error: "ARX-PASS-001: Email is required.",
       });
     }
 
-    const { error } = await authClient.auth.resetPasswordForEmail(
-      String(email).trim(),
-      {
-        redirectTo: `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password`
-      }
-    );
+    const { error } =
+      await authClient.auth.resetPasswordForEmail(
+        String(email).trim().toLowerCase(),
+        {
+          redirectTo:
+            `${
+              process.env.FRONTEND_URL ||
+              "http://localhost:5173"
+            }/reset-password`,
+        }
+      );
 
     if (error) {
       return res.status(400).json({
-        error: error.message
+        error: "ARX-PASS-002: " + error.message,
       });
     }
 
     res.json({
-      message: "Password reset email sent"
+      message: "Password reset email sent",
     });
   } catch (error) {
     next(error);
@@ -104,26 +110,32 @@ async function verifyEmail(req, res, next) {
 
     if (!email || !code) {
       return res.status(400).json({
-        error: "Email and verification code are required"
+        error:
+          "ARX-VERIFY-001: Email and verification code are required.",
       });
     }
 
-    const { data, error } = await authClient.auth.verifyOtp({
-      email: String(email).trim().toLowerCase(),
-      token: String(code),
-      type: "email"
-    });
+    const { data, error } =
+      await authClient.auth.verifyOtp({
+        email: String(email)
+          .trim()
+          .toLowerCase(),
+        token: String(code),
+        type: "email",
+      });
 
     if (error) {
       return res.status(400).json({
-        error: error.message
+        error:
+          "ARX-VERIFY-002: " +
+          error.message,
       });
     }
 
     res.json({
       message: "Email verified",
       user: data?.user || null,
-      session: data?.session || null
+      session: data?.session || null,
     });
   } catch (error) {
     next(error);
@@ -132,8 +144,154 @@ async function verifyEmail(req, res, next) {
 
 async function getSession(req, res) {
   res.json({
-    user: req.user
+    user: req.user,
   });
+}
+
+/*
+|--------------------------------------------------------------------------
+| Google OAuth
+|--------------------------------------------------------------------------
+*/
+
+async function googleOAuth(req, res, next) {
+  try {
+    const { data, error } =
+      await authClient.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo:
+            `${
+              process.env.BACKEND_URL ||
+              "http://localhost:5000"
+            }/api/auth/oauth/google/callback`,
+        },
+      });
+
+    if (error || !data?.url) {
+      return res.status(400).json({
+        error:
+          "ARX-OAUTH-GOOGLE-001: Unable to start Google authentication.",
+        details: error?.message,
+      });
+    }
+
+    return res.redirect(data.url);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function googleOAuthCallback(req, res, next) {
+  try {
+    const { code } = req.query;
+
+    if (!code) {
+      return res.status(400).json({
+        error:
+          "ARX-OAUTH-GOOGLE-002: Authorization code is missing.",
+      });
+    }
+
+    const { data, error } =
+      await authClient.auth.exchangeCodeForSession(
+        code
+      );
+
+    if (error || !data?.session) {
+      return res.status(401).json({
+        error:
+          "ARX-OAUTH-GOOGLE-003: Google authentication failed.",
+      });
+    }
+
+    const frontend =
+      process.env.FRONTEND_URL ||
+      "http://localhost:5173";
+
+    /*
+     * Registration/database check will be added here.
+     */
+
+    return res.redirect(
+      `${frontend}/home?oauth=google`
+    );
+  } catch (error) {
+    next(error);
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Discord OAuth
+|--------------------------------------------------------------------------
+*/
+
+async function discordOAuth(req, res, next) {
+  try {
+    const { data, error } =
+      await authClient.auth.signInWithOAuth({
+        provider: "discord",
+        options: {
+          redirectTo:
+            `${
+              process.env.BACKEND_URL ||
+              "http://localhost:5000"
+            }/api/auth/oauth/discord/callback`,
+        },
+      });
+
+    if (error || !data?.url) {
+      return res.status(400).json({
+        error:
+          "ARX-OAUTH-DISCORD-001: Unable to start Discord authentication.",
+        details: error?.message,
+      });
+    }
+
+    return res.redirect(data.url);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function discordOAuthCallback(req, res, next) {
+  try {
+    const { code } = req.query;
+
+    if (!code) {
+      return res.status(400).json({
+        error:
+          "ARX-OAUTH-DISCORD-002: Authorization code is missing.",
+      });
+    }
+
+    const { data, error } =
+      await authClient.auth.exchangeCodeForSession(
+        code
+      );
+
+    if (error || !data?.session) {
+      return res.status(401).json({
+        error:
+          "ARX-OAUTH-DISCORD-003: Discord authentication failed.",
+      });
+    }
+
+    const frontend =
+      process.env.FRONTEND_URL ||
+      "http://localhost:5173";
+
+    /*
+     * Registration/database check will be added here.
+     */
+
+    return res.redirect(
+      `${frontend}/home?oauth=discord`
+    );
+  } catch (error) {
+    next(error);
+  }
 }
 
 module.exports = {
@@ -142,5 +300,11 @@ module.exports = {
   logout,
   forgotPassword,
   verifyEmail,
-  getSession
+  getSession,
+
+  googleOAuth,
+  googleOAuthCallback,
+
+  discordOAuth,
+  discordOAuthCallback,
 };
